@@ -9,6 +9,6 @@ if __name__ == "__main__":
     with lzma.open("record_0.npz", "rb") as file:
         data = pickle.load(file)
 
-        print("Read", len(data), "snapshotwas")
+        print("Read", len(data), "snapshots")
         print(data[0].image)
-        print([e.current_controls for e in data])
+        print([len(e.raycast_distances) for e in data])

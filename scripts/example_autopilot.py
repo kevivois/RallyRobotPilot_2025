@@ -1,7 +1,7 @@
 
 
 from PyQt6 import QtWidgets
-
+import numpy as np
 from data_collector import DataCollectionUI
 """
 This file is provided as an example of what a simplistic controller could be done.
