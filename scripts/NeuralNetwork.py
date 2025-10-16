@@ -6,24 +6,29 @@ import lzma
 import pickle
 from torch.utils.data import random_split
 import matplotlib.pyplot as plt
-
+import zipfile  
 class DrivingNeuralNetwork(nn.Module):
     def __init__(self):
         super().__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(20, 64),
+            nn.Linear(16, 128), 
+            nn.ReLU(),      
+            nn.Dropout(0.2),
+            nn.Linear(128, 64),
             nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(32, 4),
+            nn.Dropout(0.2),
+            nn.Linear(32, 4)
         )
 
     def forward(self, x):
         logits = self.linear_relu_stack(x)
         return logits
 
-    def predict(self, features, threshold=0.5):
+    def predict(self, features, threshold=0.15):
         if isinstance(features, np.ndarray):
             x = torch.from_numpy(features).float()
         elif isinstance(features, torch.Tensor):
@@ -38,13 +43,17 @@ class DrivingNeuralNetwork(nn.Module):
         with torch.no_grad():
             logits = self.forward(x)
             probs = torch.sigmoid(logits)
-        
-        return {
-            'forward': bool(probs[0, 0] > threshold),
-            'backward': bool(probs[0, 1] > threshold),
-            'left': bool(probs[0, 2] > threshold),
-            'right': bool(probs[0, 3] > threshold)
-        }
+
+            print("probabilities:", probs)
+
+            
+            
+            return [
+                ('forward', bool(probs[0, 0] > threshold)),
+                ('back', bool(probs[0, 1] > threshold)),
+                ('left', bool(probs[0, 2] > threshold)),
+                ('right', bool(probs[0, 3] > threshold))
+            ]
     
     def save_model(self, path):
         torch.save(self.state_dict(), path)
@@ -65,23 +74,30 @@ class DrivingNeuralNetwork(nn.Module):
                 self.samples = []
 
                 for file in record_files:
-                    print(f"  Loading {file}...")
-                    try:
+                    if file.endswith(".zip"):
+                        import zipfile
+                        with zipfile.ZipFile(file, 'r') as zip_file:
+                            # Lire le premier fichier dans le zip
+                            file_list = zip_file.namelist()
+                            if file_list:
+                                with zip_file.open(file_list[0]) as f:
+                                    records = pickle.load(f)
+                                    self.data.extend(records)
+                    
+                    # ✅ Cas 3: Fichiers .npz (numpy compressé)
+                    elif file.endswith(".npz"):
                         with lzma.open(file, "rb") as f:
-                            records = pickle.load(f)
-                            self.data.extend(records)
-                    except Exception as e:
-                        print(f"  Error loading {file}: {e}")
-                        continue
-                
+                            data = pickle.load(f)
+                            self.data.extend(data)
+
                 print(f"  Total records loaded: {len(self.data)}")
                 
                 for i in range(1, len(self.data)):
                     current = self.data[i]
                     
                     features = np.array([
+
                         float(current.car_speed),
-                        *current.current_controls,
                         *current.raycast_distances
                     ], dtype=np.float32)
                     
@@ -121,18 +137,19 @@ class DrivingNeuralNetwork(nn.Module):
         bce_loss = nn.BCEWithLogitsLoss()
         return bce_loss(outputs, labels)
     
-    def train_model(self, record_files, epochs=10, batch_size=32, learning_rate=0.001, 
-                    train_split=0.7, val_split=0.15):
+    def train_model(self, record_files, epochs=20, batch_size=20, learning_rate=0.0005, 
+                    train_split=0.8):
         dataset = self._create_dataset(record_files)
         
         total_size = len(dataset)
         train_size = int(train_split * total_size)
-        val_size = int(val_split * total_size)
-        test_size = total_size - train_size - val_size
+        val_size = total_size - train_size
         
-        train_dataset, val_dataset, test_dataset = random_split(
-            dataset, [train_size, val_size, test_size]
-        )
+        train_dataset, val_dataset = random_split(
+        dataset, 
+        [train_size, val_size],
+        generator=torch.Generator().manual_seed(42)  # Reproductibilité
+    )
         
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
