@@ -21,10 +21,7 @@ class ExampleNNMsgProcessor:
             if f.endswith(".npz")
         ]
         self.model.train_model(
-            files,
-            learning_rate=0.0005,
-            epochs=30,
-            batch_size=64
+            files
         )
 
         
