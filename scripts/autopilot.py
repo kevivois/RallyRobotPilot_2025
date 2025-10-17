@@ -13,15 +13,30 @@ class ExampleNNMsgProcessor:
         self.prediction_count = 0
         self.connection_lost = False
         
-        dir = "C:\\Users\\kevin\\OneDrive\\Bureau\\RallyRobotPilot_2025\\scripts\\train_data"
+        dir = "./scripts/train_data_ana"
         print(f"[INIT] Starting Neural Network Autopilot")
         files = [
             os.path.join(dir,f)
             for f in os.listdir(dir)
             if f.endswith(".npz")
         ]
+        dir_me = "./scripts/train_data"
+        files_me = [
+            os.path.join(dir_me,f)
+            for f in os.listdir(dir_me)
+            if f.endswith(".npz")
+        ]
+        
+        dir_louis = "./scripts/train_data_louis"
+        files_louis = [
+            os.path.join(dir_louis,f)
+            for f in os.listdir(dir_louis)
+            if f.endswith(".zip")
+        ]
+        
+    
         self.model.train_model(
-            files
+            files_louis,
         )
 
         
@@ -38,12 +53,11 @@ class ExampleNNMsgProcessor:
             # Extract features
             features = np.array([
                 float(message.car_speed),
-                float(message.car_angle),
                 *message.raycast_distances
             ], dtype=np.float32).copy()
             
             # Predict (returns list of tuples: [('forward', True), ('back', False), ...])
-            predictions = self.model.predict(features, threshold=0.3)
+            predictions = self.model.predict(features)
             
             # GC every 5 predictions
             if self.prediction_count % 5 == 0:
